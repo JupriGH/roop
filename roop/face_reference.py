@@ -1,3 +1,4 @@
+'''
 from typing import Optional
 
 from roop.typing import Face
@@ -19,3 +20,4 @@ def clear_face_reference() -> None:
     global FACE_REFERENCE
 
     FACE_REFERENCE = None
+'''
