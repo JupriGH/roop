@@ -1,3 +1,4 @@
+'''
 import threading
 import numpy
 import opennsfw2
@@ -41,3 +42,4 @@ def predict_image(target_path: str) -> bool:
 def predict_video(target_path: str) -> bool:
     _, probabilities = opennsfw2.predict_video_frames(video_path=target_path, frame_interval=100)
     return any(probability > MAX_PROBABILITY for probability in probabilities)
+'''
