@@ -25,30 +25,20 @@ def clear_face_analyser() -> Any:
 
     FACE_ANALYSER = None
 
+def get_index(index, count):    
+    r = None
+    if (index > 0):
+        if (index <= count):
+            r = index-1
+    elif (index < 0):
+        if (abs(index) <= count):
+            r = index
+    return r
 
-def get_one_face(frame: Frame, position: int = 0) -> Optional[Face]:
-    many_faces = get_many_faces(frame)
-    if many_faces:
-        try:
-            return many_faces[position]
-        except IndexError:
-            return many_faces[-1]
-    return None
+def get_face(frame, index=1):
+    faces = get_face_analyser().get(frame)
+    faces.sort(key = lambda x: (x.bbox[1],x.bbox[0]) if roop.globals.sort == 0 else (x.bbox[0],x.bbox[1]))
+    if not faces: return
 
-
-def get_many_faces(frame: Frame) -> Optional[List[Face]]:
-    try:
-        return get_face_analyser().get(frame)
-    except ValueError:
-        return None
-
-
-def find_similar_face(frame: Frame, reference_face: Face) -> Optional[Face]:
-    many_faces = get_many_faces(frame)
-    if many_faces:
-        for face in many_faces:
-            if hasattr(face, 'normed_embedding') and hasattr(reference_face, 'normed_embedding'):
-                distance = numpy.sum(numpy.square(face.normed_embedding - reference_face.normed_embedding))
-                if distance < roop.globals.similar_face_distance:
-                    return face
-    return None
+    _i = get_index(index, len(faces))
+    return faces[_i]
