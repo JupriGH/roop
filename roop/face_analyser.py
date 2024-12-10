@@ -41,4 +41,6 @@ def get_face(frame, index=1):
     if not faces: return
 
     _i = get_index(index, len(faces))
+    if _i is None: return
+
     return faces[_i]
