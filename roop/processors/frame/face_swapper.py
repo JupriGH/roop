@@ -54,28 +54,83 @@ def post_process() -> None:
     clear_face_swapper()
     # clear_face_reference()
 
-def swap_face(source_face: Face, target_face: Face, temp_frame: Frame) -> Frame:
-    return get_face_swapper().get(temp_frame, target_face, source_face, paste_back=True)
 
-def process_frame(source_face: Face, reference_face: Face, temp_frame: Frame) -> Frame:
-     
-    target_face = get_face(temp_frame, index=roop.globals.base_id)
-  
-    if target_face:
-        temp_frame = swap_face(source_face, target_face, temp_frame)
+
+import filetype
+import re
+import ffmpeg
+import numpy as np
+
+def frames_generator(media_path, width, height):
+    input_arg = {}
+    '''
+    if from_ms  : input_arg['ss'] = form_ms / 1000 
+    if to_ms    : input_arg['to'] = to_ms / 1000
+    '''
+    process = (
+        ffmpeg
+        .input(media_path, **input_arg)
+        .output( 'pipe:', format='rawvideo', pix_fmt='bgr24', loglevel="quiet")  # Output raw RGB frames
+        .run_async(pipe_stdout=True) # , pipe_stderr=True)
+    )
     
-    return temp_frame
+    while 1:        
+        frame = process.stdout.read(width * height * 3)
+        if not frame: break
+        
+        frame = np.frombuffer(frame, np.uint8).reshape([height, width, 3])
+        yield frame
+    
+    # process.stdin.close()
+    process.wait()
 
+def get_frames(media_path):
+    
+    mime = filetype.guess(media_path).mime
+    
+    if (mime == 'image/gif') or re.fullmatch(r'video/.*', mime):
+          probe   = ffmpeg.probe(media_path)
+          info    = next(t for t in probe['streams'] if t['codec_type'] == 'video')
 
-def process_frames(source_path: str, temp_frame_paths: List[str], update: Callable[[], None]) -> None:
-    source_face = get_face(cv2.imread(source_path), index=roop.globals.face_id)
-    reference_face = None # if roop.globals.many_faces else get_face_reference()
-    for temp_frame_path in temp_frame_paths:
-        temp_frame = cv2.imread(temp_frame_path)
-        result = process_frame(source_face, reference_face, temp_frame)
-        cv2.imwrite(temp_frame_path, result)
-        if update:
-            update()
+          width, height, nb_frames, codec_name, pix_fmt, frame_rate = (
+              info.get(n) for n in ('width', 'height', 'nb_frames', 'codec_name', 'pix_fmt', 'r_frame_rate') 
+          )
+
+          width       = int(width or 0)
+          height      = int(height or 0)            
+          nb_frames   = int(nb_frames or 0)
+          frame_rate  = eval(frame_rate) if frame_rate else None
+          
+          print('# video:', mime, 'url:', media_path, 'fourcc:', codec_name, 'pix:', pix_fmt, 'frames:', nb_frames, 'fps:', frame_rate)
+            
+          return frames_generator(media_path, width=width, height=height) # frame_rate # , (w, h, 0) # width, height, channel
+
+    elif re.fullmatch(r'image/.*', mime):
+        
+        if 0: # url in FRAMECACHE:
+            # cache
+            frames = FRAMECACHE[url]
+        else:
+            # fetch
+            print('# image:', mime, 'url:', media_path)
+
+            if 0: # remote:
+                '''
+                res = await self.get(url, headers=headers, body='byte')
+                img = np.asarray(bytearray(res), dtype="uint8")
+                
+                frames = (cv2.imdecode(img, cv2.IMREAD_COLOR), 0)  
+                '''
+            else:      
+                frame = cv2.imread(media_path)
+
+            # FRAMECACHE[url] = frames
+        
+        return [frame]
+        
+    else:
+        assert 0, f'TODO: mime {mime}'
+
 
 def process_image(source_path: str, target_path: str, output_path: str) -> None:
     source_face = get_one_face(cv2.imread(source_path))
@@ -84,6 +139,89 @@ def process_image(source_path: str, target_path: str, output_path: str) -> None:
     result = process_frame(source_face, reference_face, target_frame)
     cv2.imwrite(output_path, result)
 
-def process_video(source_path: str, temp_frame_paths: List[str]) -> None:
+def process_video(source_path, target_path):
+    # roop.processors.frame.core.process_video(source_path, target_path, process_frames)
+    process_frames(source_path, target_path)
 
-    roop.processors.frame.core.process_video(source_path, temp_frame_paths, process_frames)
+def process_frames(source_path, target_path): # , update: Callable[[], None]) -> None:
+
+    source = get_frames(source_path)
+    target = get_frames(target_path)
+
+    for iface, source_frame in enumerate(source):
+        source_face = get_face(source_frame)
+        
+        first_frame = video_path = video = wi = hi = 0
+
+        for it, target_frame in enumerate(target):
+            
+            frame = process_frame(source_face, target_frame)  
+            
+            if it == 0:
+                first_frame = frame
+                hi, wi, ch = frame.shape # height width channel
+                print(f'# dimension: {wi}x{hi} channel: {ch}')
+
+            elif it == 1:
+                # prepare video output
+                import uuid
+                video_path = f'{str(uuid.uuid4())}.mp4'
+                video = open_video_output( video_path = video_path, shape = (wi, hi) )
+                video.stdin.write(first_frame.tobytes())
+
+            if video:
+                video.stdin.write(frame.tobytes())
+
+            if (it % 10) == 0:  
+                print(f'# frame {iface}:{it}')
+
+        if video:
+            video.stdin.close()
+            video.wait()
+        break # TODO: next faces
+
+    '''
+    source_face = get_face(cv2.imread(source_path), index=roop.globals.face_id)
+    reference_face = None # if roop.globals.many_faces else get_face_reference()
+    for temp_frame_path in temp_frame_paths:
+        temp_frame = cv2.imread(temp_frame_path)
+        result = process_frame(source_face, reference_face, temp_frame)
+        cv2.imwrite(temp_frame_path, result)
+        if update:
+            update()
+    '''
+def process_frame(source_face, target_frame):
+    target_face = get_face(target_frame) #, index=roop.globals.base_id)
+    if target_face:
+        target_frame = swap_face(source_face, target_face, target_frame)    
+    return target_frame
+
+def swap_face(source_face: Face, target_face: Face, temp_frame: Frame) -> Frame:
+    return get_face_swapper().get(temp_frame, target_face, source_face, paste_back=True)
+
+def open_video_output(video_path, shape, fps=30):    
+    video_quality = 20 # (roop.globals.output_video_quality + 1) * 51 // 100
+
+    process = (
+      ffmpeg
+      .input(
+          'pipe:0',  # Input from stdin
+          format      = 'rawvideo',
+          pix_fmt     = 'bgr24',
+          s           = f'{shape[0]}x{shape[1]}', # '1280x720', # f'{wi}x{hi}',
+          framerate   = fps
+      )
+      .output(
+          video_path, 
+          crf         = video_quality,
+          vcodec      = 'libx265',
+          pix_fmt     = 'yuv420p',
+          preset      = 'veryslow',
+          loglevel    = 'quiet'
+      )
+      .overwrite_output()
+      .run_async(pipe_stdin=True) # , quiet=True
+    )
+    return process
+
+
