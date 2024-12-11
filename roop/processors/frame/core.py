@@ -44,8 +44,11 @@ def get_frame_processors_modules(frame_processors: List[str]) -> List[ModuleType
             FRAME_PROCESSORS_MODULES.append(frame_processor_module)
     return FRAME_PROCESSORS_MODULES
 
+def get_frames(frame_path):
+    pass
 
-def multi_process_frame(source_path: str, temp_frame_paths: List[str], process_frames: Callable[[str, List[str], Any], None], update: Callable[[], None]) -> None:
+def multi_process_frame(source_path, target_path, process_frames, update):
+    '''
     with ThreadPoolExecutor(max_workers=roop.globals.execution_threads) as executor:
         futures = []
         queue = create_queue(temp_frame_paths)
@@ -55,7 +58,7 @@ def multi_process_frame(source_path: str, temp_frame_paths: List[str], process_f
             futures.append(future)
         for future in as_completed(futures):
             future.result()
-
+    '''
 
 def create_queue(temp_frame_paths: List[str]) -> Queue[str]:
     queue: Queue[str] = Queue()
@@ -72,11 +75,11 @@ def pick_queue(queue: Queue[str], queue_per_future: int) -> List[str]:
     return queues
 
 
-def process_video(source_path: str, frame_paths: list[str], process_frames: Callable[[str, List[str], Any], None]) -> None:
+def process_video(source_path, target_path, process_frames):
     progress_bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]'
-    total = len(frame_paths)
+    total = 0 # len(frame_paths)
     with tqdm(total=total, desc='Processing', unit='frame', dynamic_ncols=True, bar_format=progress_bar_format) as progress:
-        multi_process_frame(source_path, frame_paths, process_frames, lambda: update_progress(progress))
+        multi_process_frame(source_path, target_path, process_frames, lambda: update_progress(progress))
 
 
 def update_progress(progress: Any = None) -> None:
