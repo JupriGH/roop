@@ -144,7 +144,6 @@ def process_video(source_path, target_path):
     process_frames(source_path, target_path)
 
 def process_frames(source_path, target_path): # , update: Callable[[], None]) -> None:
-
     source = get_frames(source_path)
     target = get_frames(target_path)
 
@@ -191,16 +190,28 @@ def process_frames(source_path, target_path): # , update: Callable[[], None]) ->
             update()
     '''
 def process_frame(source_face, target_frame):
-    target_face = get_face(target_frame) #, index=roop.globals.base_id)
+    # temporary rotate
+    rc = None
+    match roop.globals.rotate:
+        case  1: rc = (cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        case -1: rc = (cv2.ROTATE_90_COUNTERCLOCKWISE, cv2.ROTATE_90_CLOCKWISE)
+        case  2: rc = (cv2.ROTATE_180, cv2.ROTATE_180)   
+
+    if rc: target_frame = cv2.rotate(target_frame, rc[0])    
+
+    target_face = get_face(target_frame, index=roop.globals.base_id)
+
+    # swap
     if target_face:
-        target_frame = swap_face(source_face, target_face, target_frame)    
+        target_frame = get_face_swapper().get(target_frame, target_face, source_face, paste_back=True)
+    
+    # rotate original
+    if rc: target_frame = cv2.rotate(target_frame, rc[1])   
+
     return target_frame
 
-def swap_face(source_face: Face, target_face: Face, temp_frame: Frame) -> Frame:
-    return get_face_swapper().get(temp_frame, target_face, source_face, paste_back=True)
-
 def open_video_output(video_path, shape, fps=30):    
-    video_quality = 20 # (roop.globals.output_video_quality + 1) * 51 // 100
+    video_quality = 1 # (roop.globals.output_video_quality + 1) * 51 // 100
 
     process = (
       ffmpeg
@@ -214,7 +225,7 @@ def open_video_output(video_path, shape, fps=30):
       .output(
           video_path, 
           crf         = video_quality,
-          vcodec      = 'libx265',
+          vcodec      = 'libx264',
           pix_fmt     = 'yuv420p',
           preset      = 'veryslow',
           loglevel    = 'quiet'
