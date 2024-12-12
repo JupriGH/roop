@@ -74,7 +74,8 @@ def parse_args() -> None:
     roop.globals.sort = 1
     roop.globals.face_id = 1
     roop.globals.base_id = -1
-    
+    roop.globals.rotate = -1 
+
 def encode_execution_providers(execution_providers: List[str]) -> List[str]:
     return [execution_provider.replace('ExecutionProvider', '').lower() for execution_provider in execution_providers]
 
@@ -156,52 +157,15 @@ def start() -> None:
         return
         '''
 
-    # process image to videos
-    # if predict_video(roop.globals.target_path): destroy()
-    '''
-    update_status('Creating temporary resources...')
-    create_temp(roop.globals.target_path)
-    '''
-
-    # extract frames
-    '''
-    if roop.globals.keep_fps:
-        fps = detect_fps(roop.globals.target_path)
-        update_status(f'Extracting frames with {fps} FPS...')
-        extract_frames(roop.globals.target_path, fps)
-    else:
-        update_status('Extracting frames with 30 FPS...')
-        extract_frames(roop.globals.target_path)
-    '''
+    # IMAGE TO VIDEO
 
     # process frame
-    
-    '''
-    temp_frame_paths = get_temp_frame_paths(roop.globals.target_path)
-    if temp_frame_paths:
-        for frame_processor in get_frame_processors_modules(roop.globals.frame_processors):
-            update_status('Progressing...', frame_processor.NAME)
-            frame_processor.process_video(roop.globals.source_path, temp_frame_paths)
-            frame_processor.post_process()
-    else:
-        update_status('Frames not found...')
-        return
-    '''
+
     for frame_processor in get_frame_processors_modules(roop.globals.frame_processors):
         update_status('Progressing...', frame_processor.NAME)
         frame_processor.process_video(roop.globals.source_path, roop.globals.target_path)
         frame_processor.post_process()
 
-    # create video
-    '''
-    if roop.globals.keep_fps:
-        fps = detect_fps(roop.globals.target_path)
-        update_status(f'Creating video with {fps} FPS...')
-        create_video(roop.globals.target_path, fps)
-    else:
-        update_status('Creating video with 30 FPS...')
-        create_video(roop.globals.target_path)
-    '''
     # handle audio
     '''
     if roop.globals.skip_audio:
